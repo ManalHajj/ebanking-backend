@@ -1,11 +1,20 @@
 package org.sid.ebankingbackend;
 
+import org.sid.ebankingbackend.dtos.BankAccountDTO;
+import org.sid.ebankingbackend.dtos.CurrentBankAccountDTO;
+import org.sid.ebankingbackend.dtos.CustomerDTO;
+import org.sid.ebankingbackend.dtos.SavingBankAccountDTO;
 import org.sid.ebankingbackend.entities.*;
 import org.sid.ebankingbackend.enums.AccountStatus;
 import org.sid.ebankingbackend.enums.OperationType;
+import org.sid.ebankingbackend.exceptions.BalanceNotSufficientException;
+import org.sid.ebankingbackend.exceptions.BankAccountNotFoundException;
+import org.sid.ebankingbackend.exceptions.CustomerNotFoundException;
 import org.sid.ebankingbackend.repositories.AccountOperationRepository;
 import org.sid.ebankingbackend.repositories.BankAccountRepository;
 import org.sid.ebankingbackend.repositories.CustomerRepository;
+import org.sid.ebankingbackend.services.BankAccountService;
+import org.sid.ebankingbackend.services.BankService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -13,6 +22,7 @@ import org.springframework.boot.diagnostics.analyzer.BeanNotOfRequiredTypeFailur
 import org.springframework.context.annotation.Bean;
 
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -24,29 +34,41 @@ public class EbankingBackendApplication {
         SpringApplication.run(EbankingBackendApplication.class, args);
     }
     @Bean
-    CommandLineRunner commandLineRunner(BankAccountRepository bankAccountRepository){
+    CommandLineRunner commandLineRunner(BankAccountService bankAccountService){
         return  args ->{
-            BankAccount bankAccount=bankAccountRepository.findById("2cd830a8-da09-45d7-aa85-d25d3259ddf4").orElse(null);
-            if(bankAccount!=null) {
-                System.out.println("*********************************");
-                System.out.println(bankAccount.getId());
-                System.out.println(bankAccount.getBalance());
-                System.out.println(bankAccount.getStatus());
-                System.out.println(bankAccount.getCreatedAt());
-                System.out.println(bankAccount.getCustomer().getName());
-                System.out.println(bankAccount.getClass().getSimpleName());
-                if (bankAccount instanceof CurrentAccount) {
-                    System.out.println("Over Draft : " + ((CurrentAccount) bankAccount).getOverDraft());
-                } else if (bankAccount instanceof SavingAccount) {
-                    System.out.println("Rate" + ((SavingAccount) bankAccount).getInterestRate());
+            Stream.of("Hassan","Imane","Mohamed").forEach(name->{
+                CustomerDTO customer=new CustomerDTO();
+                customer.setName(name);
+                customer.setEmail(name+"@gmail.com");
+                bankAccountService.saveCustomer(customer);
+            });
+
+              bankAccountService.listCustomers().forEach(customer ->{
+                  try {
+                      bankAccountService.saveCurrentBankAccount(Math.random() * 9000, 900, customer.getId());
+                      bankAccountService.saveSavingBankAccount(Math.random() * 12000, 5.5, customer.getId());
+                  } catch (CustomerNotFoundException e) {
+                      e.printStackTrace();
+                  }
+              });
+            List<BankAccountDTO> bankAccounts = bankAccountService.bankAccountList();
+            for(BankAccountDTO bankAccount:bankAccounts){
+                for(int i=0;i<10;i++){
+                    String accountId;
+                    if(bankAccount instanceof SavingBankAccountDTO){
+                        accountId=((SavingBankAccountDTO) bankAccount).getId();
+                    }else {
+                        accountId=((CurrentBankAccountDTO) bankAccount).getId();
+                    }
+                    bankAccountService.credit(accountId, 10000+Math.random()*12000,"Credit");
+                    bankAccountService.debit(accountId,10000+Math.random()*9000,"Debit" );
                 }
-                bankAccount.getAccountOperations().forEach(op -> {
-                    System.out.println("***********");
-                    System.out.println(op.getType());
-                    System.out.println(op.getOperationDate());
-                    System.out.println(op.getAmount());
-                });
             }
+
+
+
+
+
         };
     }
     //@Bean
